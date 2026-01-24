@@ -1,11 +1,16 @@
+import os
 from pathlib import Path
 
 VERSION_MAJOR = 2
 VERSION_MINOR = 7
 VERSION_BETA = True
 __VERSION__ = f"{VERSION_MAJOR}.{VERSION_MINOR}.{'beta' if VERSION_BETA else 'stable'}"
-ROOT = Path(__file__).resolve().parent.parent.parent.joinpath("Volume")
-ROOT.mkdir(exist_ok=True)
+_default_root = Path(__file__).resolve().parent.parent.parent.joinpath("Volume")
+_env_root = os.getenv("XHS_VOLUME")
+if os.getenv("VERCEL") and not _env_root:
+    _env_root = "/tmp/xhs_downloader_volume"
+ROOT = Path(_env_root) if _env_root else _default_root
+ROOT.mkdir(parents=True, exist_ok=True)
 PROJECT = f"XHS-Downloader V{VERSION_MAJOR}.{VERSION_MINOR} {
     'Beta' if VERSION_BETA else 'Stable'
 }"
