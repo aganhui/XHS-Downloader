@@ -3,6 +3,8 @@ from .manager import Manager
 from .model import (
     ExtractData,
     ExtractParams,
+    SearchData,
+    SearchParams,
 )
 from .recorder import DataRecorder
 from .recorder import IDRecorder

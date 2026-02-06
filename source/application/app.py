@@ -28,6 +28,7 @@ from ..expansion import (
     Cleaner,
     Converter,
     Namespace,
+    XhsSearchClient,
     beautify_string,
 )
 from ..module import (
@@ -46,6 +47,8 @@ from ..module import (
     IDRecorder,
     Manager,
     MapRecorder,
+    SearchData,
+    SearchParams,
     logging,
     # sleep_time,
     ScriptServer,
@@ -184,6 +187,11 @@ class XHS:
         self.queue = Queue()
         self.event = Event()
         self.script = None
+        self.search_client = XhsSearchClient(
+            self.manager.request_client,
+            self.manager.headers.get("cookie"),
+            self.manager.proxy,
+        )
         self.init_script_server(
             script_host,
             script_port,
@@ -370,6 +378,41 @@ class XHS:
             elif j := self.ID_USER.search(i):
                 ids.append(j.group(1))
         return ids
+
+    @staticmethod
+    def _build_note_url(item: dict) -> str | None:
+        note_id = item.get("id") or item.get("note_id") or item.get("noteId")
+        xsec_token = item.get("xsec_token") or item.get("xsecToken")
+        if note_id and xsec_token:
+            return f"https://www.xiaohongshu.com/explore/{note_id}?xsec_token={xsec_token}"
+        if note_id:
+            return f"https://www.xiaohongshu.com/explore/{note_id}"
+        return None
+
+    async def search_notes(
+        self,
+        params: SearchParams,
+    ) -> list[dict]:
+        items = await self.search_client.search_notes(
+            keyword=params.keyword,
+            require_num=params.require_num,
+            cookies_str=params.cookie,
+            sort_type_choice=params.sort_type_choice,
+            note_type=params.note_type,
+            note_time=params.note_time,
+            note_range=params.note_range,
+            pos_distance=params.pos_distance,
+            geo=params.geo,
+            proxy=params.proxy,
+        )
+        notes = [i for i in items if i.get("model_type") == "note"] or items
+        normalized = []
+        for item in notes:
+            note = dict(item)
+            if url := self._build_note_url(note):
+                note["note_url"] = url
+            normalized.append(note)
+        return normalized
 
     async def _get_html_data(
         self,
@@ -707,7 +750,7 @@ class XHS:
             description=_(
                 dedent("""
                 **参数**:
-                        
+
                 - **url**: 小红书作品链接，自动提取，不支持多链接；必需参数
                 - **download**: 是否下载作品文件；设置为 true 将会耗费更多时间；可选参数
                 - **index**: 下载指定序号的图片文件，仅对图文作品生效；download 参数设置为 false 时不生效；可选参数
@@ -740,6 +783,38 @@ class XHS:
                     msg = _("获取小红书作品数据失败")
             return ExtractData(message=msg, params=extract, data=data)
 
+        @server.post(
+            "/xhs/search",
+            summary=_("搜索小红书笔记"),
+            description=_(
+                dedent("""
+                **参数**:
+
+                - **keyword**: 搜索关键词；必需参数
+                - **require_num**: 搜索数量；可选参数，默认 20
+                - **cookie**: 请求数据时使用的 Cookie；可选参数
+                - **proxy**: 请求数据时使用的代理；可选参数
+                - **sort_type_choice**: 排序方式（0 综合，1 最新，2 最多点赞，3 最多评论，4 最多收藏）
+                - **note_type**: 笔记类型（0 不限，1 视频，2 普通）
+                - **note_time**: 时间范围（0 不限，1 一天内，2 一周内，3 半年内）
+                - **note_range**: 笔记范围（0 不限，1 已看过，2 未看过，3 已关注）
+                - **pos_distance**: 位置距离（0 不限，1 同城，2 附近；使用 1/2 时需提供 geo）
+                - **geo**: 定位信息（经纬度 JSON）
+                """)
+            ),
+            tags=["API"],
+            response_model=SearchData,
+        )
+        async def handle_search(params: SearchParams):
+            try:
+                data = await self.search_notes(params)
+                msg = _("搜索笔记成功")
+            except Exception as exc:
+                self.logging(_("搜索笔记失败：{0}").format(exc), ERROR)
+                data = None
+                msg = _("搜索笔记失败")
+            return SearchData(message=msg, params=params, data=data)
+
     async def run_mcp_server(
         self,
         transport="streamable-http",
@@ -751,12 +826,12 @@ class XHS:
             "XHS-Downloader",
             instructions=dedent("""
                 本服务器提供两个 MCP 接口，分别用于获取小红书作品信息数据和下载小红书作品文件，二者互不依赖，可独立调用。
-                
+
                 支持的作品链接格式：
                 - https://www.xiaohongshu.com/explore/...
                 - https://www.xiaohongshu.com/discovery/item/...
                 - https://xhslink.com/...
-                
+
                 get_detail_data
                 功能：输入小红书作品链接，返回该作品的信息数据，不会下载文件。
                 参数：
@@ -764,7 +839,7 @@ class XHS:
                 返回：
                 - message：结果提示
                 - data：作品信息数据
-                
+
                 download_detail
                 功能：输入小红书作品链接，下载作品文件，默认不返回作品信息数据。
                 参数：
@@ -782,13 +857,13 @@ class XHS:
             name="get_detail_data",
             description=dedent("""
                 功能：输入小红书作品链接，返回该作品的信息数据，不会下载文件。
-                
+
                 参数：
                 url（必填）：小红书作品链接，格式如：
                 - https://www.xiaohongshu.com/explore/...
                 - https://www.xiaohongshu.com/discovery/item/...
                 - https://xhslink.com/...
-                
+
                 返回：
                 - message：结果提示
                 - data：作品信息数据
@@ -823,7 +898,7 @@ class XHS:
             name="download_detail",
             description=dedent("""
                 功能：输入小红书作品链接，下载作品文件，默认不返回作品信息数据。
-                
+
                 参数：
                 url（必填）：小红书作品链接，格式如：
                 - https://www.xiaohongshu.com/explore/...
@@ -831,7 +906,7 @@ class XHS:
                 - https://xhslink.com/...
                 index（选填）：根据用户指定的图片序号（如用户说“下载第1和第3张”时，index应为 [1, 3]），生成由所需图片序号组成的列表；如果用户未指定序号，则该字段为 None
                 return_data（可选）：是否返回作品信息数据；如需返回作品信息数据，设置此参数为 true，默认值为 false
-                
+
                 返回：
                 - message：结果提示
                 - data：作品信息数据，不需要返回作品信息数据时固定为 None
