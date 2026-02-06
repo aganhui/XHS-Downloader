@@ -1,17 +1,5 @@
 {
-  "builds": [
-    {
-      "src": "api/app.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": "source/expansion/assets/**"
-      }
-    }
-  ],
   "rewrites": [
-    { "source": "/docs", "destination": "/api/app/docs" },
-    { "source": "/redoc", "destination": "/api/app/redoc" },
-    { "source": "/openapi.json", "destination": "/api/app/openapi.json" },
     { "source": "/(.*)", "destination": "/api/app" }
   ]
 }
