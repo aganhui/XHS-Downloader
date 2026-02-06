@@ -1,19 +1,17 @@
 import json
 import math
-import os
 import random
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 try:
-    import execjs
+    from quickjs import Context
 except Exception as exc:  # pragma: no cover - runtime dependency
-    execjs = None
-    _execjs_error = exc
+    Context = None
+    _quickjs_error = exc
 else:
-    _execjs_error = None
+    _quickjs_error = None
 
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
@@ -23,26 +21,6 @@ def _read_js(path: Path) -> str:
     if not path.is_file():
         raise FileNotFoundError(f"JS file not found: {path}")
     return path.read_text(encoding="utf-8")
-
-
-def _ensure_node_runtime() -> None:
-    if shutil.which("node"):
-        return
-    candidates = []
-    if node_path := os.getenv("XHS_NODE_PATH") or os.getenv("NODE_BINARY_PATH"):
-        candidates.append(Path(node_path))
-    candidates.extend(
-        [
-            ASSETS_DIR / "node",
-            Path.cwd() / "node_modules" / ".bin" / "node",
-            Path.cwd() / "node",
-        ]
-    )
-    for candidate in candidates:
-        if candidate.is_file():
-            os.environ["PATH"] = f"{candidate.parent}:{os.environ.get('PATH', '')}"
-            break
-    os.environ.setdefault("EXECJS_RUNTIME", "Node")
 
 
 def _generate_x_b3_traceid(length: int = 16) -> str:
@@ -83,20 +61,27 @@ def _request_headers_template() -> dict:
 
 @dataclass(frozen=True)
 class _Signer:
-    xs_js: Any
-    xray_js: Any
+    ctx: Any
+    get_request_headers_params: Any
+    trace_id: Any
 
     @classmethod
     def load(cls) -> "_Signer":
-        if execjs is None:
+        if Context is None:
             raise RuntimeError(
-                "execjs unavailable, please install PyExecJS. "
-                f"Original error: {_execjs_error}"
+                "quickjs unavailable, please install quickjs. "
+                f"Original error: {_quickjs_error}"
             )
-        _ensure_node_runtime()
-        xs_js = execjs.compile(_read_js(ASSETS_DIR / "xhs_xs_xsc_56.js"))
-        xray_js = execjs.compile(_read_js(ASSETS_DIR / "xhs_xray.js"))
-        return cls(xs_js=xs_js, xray_js=xray_js)
+        ctx = Context()
+        ctx.eval(_read_js(ASSETS_DIR / "xhs_xs_xsc_56.js"))
+        ctx.eval(_read_js(ASSETS_DIR / "xhs_xray.js"))
+        get_request_headers_params = ctx.eval("get_request_headers_params")
+        trace_id = ctx.eval("traceId")
+        return cls(
+            ctx=ctx,
+            get_request_headers_params=get_request_headers_params,
+            trace_id=trace_id,
+        )
 
     def generate_xs_xs_common(
         self,
@@ -105,11 +90,11 @@ class _Signer:
         data: str,
         method: str,
     ) -> tuple[str, str, str]:
-        ret = self.xs_js.call("get_request_headers_params", api, data, a1, method)
+        ret = self.get_request_headers_params(api, data, a1, method)
         return ret["xs"], ret["xt"], ret["xs_common"]
 
     def generate_xray_traceid(self) -> str:
-        return self.xray_js.call("traceId")
+        return self.trace_id()
 
 
 class XhsSearchClient:

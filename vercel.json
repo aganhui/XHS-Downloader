@@ -1,5 +1,4 @@
 {
-  "buildCommand": "curl -fL https://nodejs.org/dist/v18.20.4/node-v18.20.4-linux-x64.tar.xz -o /tmp/node.tar.xz && tar -xJf /tmp/node.tar.xz -C /tmp && cp /tmp/node-v18.20.4-linux-x64/bin/node source/expansion/assets/node && chmod +x source/expansion/assets/node",
   "builds": [
     {
       "src": "api/app.py",
@@ -9,9 +8,10 @@
       }
     }
   ],
-  "routes": [
-    { "src": "/docs", "dest": "/api/app/docs" },
-    { "src": "/redoc", "dest": "/api/app/redoc" },
-    { "src": "/(.*)", "dest": "/api/app" }
+  "rewrites": [
+    { "source": "/docs", "destination": "/api/app/docs" },
+    { "source": "/redoc", "destination": "/api/app/redoc" },
+    { "source": "/openapi.json", "destination": "/api/app/openapi.json" },
+    { "source": "/(.*)", "destination": "/api/app" }
   ]
 }

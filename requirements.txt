@@ -15,11 +15,11 @@ fastmcp>=2.14.0
 httpx[socks]==0.28.1
     # via xhs-downloader (pyproject.toml)
 lxml==6.0.2
-PyExecJS==1.5.1
     # via xhs-downloader (pyproject.toml)
 pyperclip==1.11.0
     # via xhs-downloader (pyproject.toml)
 pyyaml==6.0.3
+quickjs==1.19.4
     # via xhs-downloader (pyproject.toml)
 rookiepy==0.5.6
     # via xhs-downloader (pyproject.toml)
