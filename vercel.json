@@ -10,6 +10,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/docs", "destination": "/api/app/docs" },
+    { "source": "/redoc", "destination": "/api/app/redoc" },
     { "source": "/(.*)", "destination": "/api/app" }
   ]
 }
