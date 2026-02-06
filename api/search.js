@@ -186,12 +186,13 @@ module.exports = async function handler(req, res) {
       })
     );
   } catch (error) {
-    res.statusCode = 500;
+    const message = String(error?.message || error);
+    res.statusCode = message.includes("Cookie 缺少 a1") ? 400 : 500;
     res.setHeader("Content-Type", "application/json");
     res.end(
       JSON.stringify({
         message: "搜索笔记失败",
-        error: String(error?.message || error),
+        error: message,
       })
     );
   }
