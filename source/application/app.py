@@ -28,9 +28,12 @@ from ..expansion import (
     Cleaner,
     Converter,
     Namespace,
-    XhsSearchClient,
     beautify_string,
 )
+try:
+    from ..expansion import XhsSearchClient
+except ImportError:
+    from ..expansion.xhs_search import XhsSearchClient
 from ..module import (
     __VERSION__,
     ERROR,
