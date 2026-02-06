@@ -9,9 +9,9 @@
       }
     }
   ],
-  "rewrites": [
-    { "source": "/docs", "destination": "/api/app/docs" },
-    { "source": "/redoc", "destination": "/api/app/redoc" },
-    { "source": "/(.*)", "destination": "/api/app" }
+  "routes": [
+    { "src": "/docs", "dest": "/api/app/docs" },
+    { "src": "/redoc", "dest": "/api/app/redoc" },
+    { "src": "/(.*)", "dest": "/api/app" }
   ]
 }
