@@ -1,6 +1,8 @@
 import json
 import math
+import os
 import random
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,26 @@ def _read_js(path: Path) -> str:
     if not path.is_file():
         raise FileNotFoundError(f"JS file not found: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def _ensure_node_runtime() -> None:
+    if shutil.which("node"):
+        return
+    candidates = []
+    if node_path := os.getenv("XHS_NODE_PATH") or os.getenv("NODE_BINARY_PATH"):
+        candidates.append(Path(node_path))
+    candidates.extend(
+        [
+            ASSETS_DIR / "node",
+            Path.cwd() / "node_modules" / ".bin" / "node",
+            Path.cwd() / "node",
+        ]
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            os.environ["PATH"] = f"{candidate.parent}:{os.environ.get('PATH', '')}"
+            break
+    os.environ.setdefault("EXECJS_RUNTIME", "Node")
 
 
 def _generate_x_b3_traceid(length: int = 16) -> str:
@@ -71,6 +93,7 @@ class _Signer:
                 "execjs unavailable, please install PyExecJS. "
                 f"Original error: {_execjs_error}"
             )
+        _ensure_node_runtime()
         xs_js = execjs.compile(_read_js(ASSETS_DIR / "xhs_xs_xsc_56.js"))
         xray_js = execjs.compile(_read_js(ASSETS_DIR / "xhs_xray.js"))
         return cls(xs_js=xs_js, xray_js=xray_js)
@@ -101,7 +124,12 @@ class XhsSearchClient:
         self.client = client
         self.cookie = cookie or ""
         self.proxy = proxy
-        self.signer = _Signer.load()
+        self.signer = None
+
+    def _get_signer(self) -> _Signer:
+        if not self.signer:
+            self.signer = _Signer.load()
+        return self.signer
 
     def _generate_headers(
         self,
@@ -116,7 +144,8 @@ class XhsSearchClient:
         raw_data = data
         if isinstance(data, dict):
             raw_data = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
-        xs, xt, xs_common = self.signer.generate_xs_xs_common(
+        signer = self._get_signer()
+        xs, xt, xs_common = signer.generate_xs_xs_common(
             cookies["a1"],
             api,
             raw_data or "",
@@ -127,7 +156,7 @@ class XhsSearchClient:
         headers["x-t"] = str(xt)
         headers["x-s-common"] = xs_common
         headers["x-b3-traceid"] = _generate_x_b3_traceid()
-        headers["x-xray-traceid"] = self.signer.generate_xray_traceid()
+        headers["x-xray-traceid"] = signer.generate_xray_traceid()
         return headers, cookies, raw_data or ""
 
     @staticmethod
