@@ -1,10 +1,14 @@
 {
   "buildCommand": "curl -fL https://nodejs.org/dist/v18.20.4/node-v18.20.4-linux-x64.tar.xz -o /tmp/node.tar.xz && tar -xJf /tmp/node.tar.xz -C /tmp && cp /tmp/node-v18.20.4-linux-x64/bin/node source/expansion/assets/node && chmod +x source/expansion/assets/node",
-  "functions": {
-    "api/app": {
-      "includeFiles": "source/expansion/assets/**"
+  "builds": [
+    {
+      "src": "api/app.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": "source/expansion/assets/**"
+      }
     }
-  },
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/app" }
   ]
