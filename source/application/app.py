@@ -30,10 +30,6 @@ from ..expansion import (
     Namespace,
     beautify_string,
 )
-try:
-    from ..expansion import XhsSearchClient
-except ImportError:
-    from ..expansion.xhs_search import XhsSearchClient
 from ..module import (
     __VERSION__,
     ERROR,
@@ -50,8 +46,6 @@ from ..module import (
     IDRecorder,
     Manager,
     MapRecorder,
-    SearchData,
-    SearchParams,
     logging,
     # sleep_time,
     ScriptServer,
@@ -190,11 +184,6 @@ class XHS:
         self.queue = Queue()
         self.event = Event()
         self.script = None
-        self.search_client = XhsSearchClient(
-            self.manager.request_client,
-            self.manager.headers.get("cookie"),
-            self.manager.proxy,
-        )
         self.init_script_server(
             script_host,
             script_port,
@@ -381,41 +370,6 @@ class XHS:
             elif j := self.ID_USER.search(i):
                 ids.append(j.group(1))
         return ids
-
-    @staticmethod
-    def _build_note_url(item: dict) -> str | None:
-        note_id = item.get("id") or item.get("note_id") or item.get("noteId")
-        xsec_token = item.get("xsec_token") or item.get("xsecToken")
-        if note_id and xsec_token:
-            return f"https://www.xiaohongshu.com/explore/{note_id}?xsec_token={xsec_token}"
-        if note_id:
-            return f"https://www.xiaohongshu.com/explore/{note_id}"
-        return None
-
-    async def search_notes(
-        self,
-        params: SearchParams,
-    ) -> list[dict]:
-        items = await self.search_client.search_notes(
-            keyword=params.keyword,
-            require_num=params.require_num,
-            cookies_str=params.cookie,
-            sort_type_choice=params.sort_type_choice,
-            note_type=params.note_type,
-            note_time=params.note_time,
-            note_range=params.note_range,
-            pos_distance=params.pos_distance,
-            geo=params.geo,
-            proxy=params.proxy,
-        )
-        notes = [i for i in items if i.get("model_type") == "note"] or items
-        normalized = []
-        for item in notes:
-            note = dict(item)
-            if url := self._build_note_url(note):
-                note["note_url"] = url
-            normalized.append(note)
-        return normalized
 
     async def _get_html_data(
         self,
@@ -785,38 +739,6 @@ class XHS:
                 else:
                     msg = _("获取小红书作品数据失败")
             return ExtractData(message=msg, params=extract, data=data)
-
-        @server.post(
-            "/xhs/search",
-            summary=_("搜索小红书笔记"),
-            description=_(
-                dedent("""
-                **参数**:
-
-                - **keyword**: 搜索关键词；必需参数
-                - **require_num**: 搜索数量；可选参数，默认 20
-                - **cookie**: 请求数据时使用的 Cookie；可选参数
-                - **proxy**: 请求数据时使用的代理；可选参数
-                - **sort_type_choice**: 排序方式（0 综合，1 最新，2 最多点赞，3 最多评论，4 最多收藏）
-                - **note_type**: 笔记类型（0 不限，1 视频，2 普通）
-                - **note_time**: 时间范围（0 不限，1 一天内，2 一周内，3 半年内）
-                - **note_range**: 笔记范围（0 不限，1 已看过，2 未看过，3 已关注）
-                - **pos_distance**: 位置距离（0 不限，1 同城，2 附近；使用 1/2 时需提供 geo）
-                - **geo**: 定位信息（经纬度 JSON）
-                """)
-            ),
-            tags=["API"],
-            response_model=SearchData,
-        )
-        async def handle_search(params: SearchParams):
-            try:
-                data = await self.search_notes(params)
-                msg = _("搜索笔记成功")
-            except Exception as exc:
-                self.logging(_("搜索笔记失败：{0}").format(exc), ERROR)
-                data = None
-                msg = _("搜索笔记失败")
-            return SearchData(message=msg, params=params, data=data)
 
     async def run_mcp_server(
         self,
