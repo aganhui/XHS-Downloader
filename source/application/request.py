@@ -76,7 +76,12 @@ class Html:
         self,
         cookie: str = None,
     ) -> dict:
-        return self.headers | {"Cookie": cookie} if cookie else self.headers.copy()
+        if cookie:
+            # 清理 Cookie 字符串中的换行符和其他非法字符
+            # HTTP header 值不能包含换行符、回车符等控制字符
+            cleaned_cookie = cookie.replace("\n", "").replace("\r", "").strip()
+            return self.headers | {"Cookie": cleaned_cookie}
+        return self.headers.copy()
 
     async def __request_url_head(
         self,

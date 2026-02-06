@@ -28,9 +28,11 @@ def _generate_x_b3_traceid(length: int = 16) -> str:
 
 
 def _trans_cookies(cookie_string: str) -> dict:
-    if "; " in cookie_string:
-        return {i.split("=")[0]: "=".join(i.split("=")[1:]) for i in cookie_string.split("; ")}
-    return {i.split("=")[0]: "=".join(i.split("=")[1:]) for i in cookie_string.split(";")}
+    # 清理 Cookie 字符串中的换行符和其他非法字符
+    cleaned = cookie_string.replace("\n", "").replace("\r", "").strip()
+    if "; " in cleaned:
+        return {i.split("=")[0]: "=".join(i.split("=")[1:]) for i in cleaned.split("; ")}
+    return {i.split("=")[0]: "=".join(i.split("=")[1:]) for i in cleaned.split(";")}
 
 
 def _request_headers_template() -> dict:

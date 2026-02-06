@@ -46,7 +46,9 @@ function buildFilters({
 }
 
 function buildHeaders(cookie, api, data) {
-  const cookies = parseCookies(cookie || "");
+  // 清理 Cookie 字符串中的换行符和其他非法字符
+  const cleanedCookie = cookie ? cookie.replace(/\n/g, "").replace(/\r/g, "").trim() : "";
+  const cookies = parseCookies(cleanedCookie);
   const a1 = cookies.a1 || "";
   if (!a1) {
     throw new Error("Cookie 缺少 a1");
@@ -68,7 +70,7 @@ function buildHeaders(cookie, api, data) {
     "x-t": String(xt),
     "x-s-common": xs_common,
     "x-xray-traceid": xray,
-    "cookie": cookie || "",
+    "cookie": cleanedCookie,
   };
 }
 
