@@ -24,10 +24,27 @@ class Explore:
 
     @staticmethod
     def __extract_interact_info(container: dict, data: Namespace) -> None:
-        container["收藏数量"] = data.safe_extract("interactInfo.collectedCount", "-1")
-        container["评论数量"] = data.safe_extract("interactInfo.commentCount", "-1")
-        container["分享数量"] = data.safe_extract("interactInfo.shareCount", "-1")
-        container["点赞数量"] = data.safe_extract("interactInfo.likedCount", "-1")
+        # 尝试多种字段名格式，以兼容不同的数据结构
+        # 优先使用下划线命名（实际API返回的格式）
+        collected = data.safe_extract("interact_info.collected_count", None)
+        if collected is None:
+            collected = data.safe_extract("interactInfo.collectedCount", "-1")
+        container["收藏数量"] = collected
+
+        comment = data.safe_extract("interact_info.comment_count", None)
+        if comment is None:
+            comment = data.safe_extract("interactInfo.commentCount", "-1")
+        container["评论数量"] = comment
+
+        shared = data.safe_extract("interact_info.shared_count", None)
+        if shared is None:
+            shared = data.safe_extract("interactInfo.shareCount", "-1")
+        container["分享数量"] = shared
+
+        liked = data.safe_extract("interact_info.liked_count", None)
+        if liked is None:
+            liked = data.safe_extract("interactInfo.likedCount", "-1")
+        container["点赞数量"] = liked
 
     @staticmethod
     def __extract_tags(container: dict, data: Namespace):
