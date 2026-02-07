@@ -36,29 +36,45 @@ function getLogsFromFile(limit = 100, offset = 0) {
 async function getLogsFromAPI(limit = 100, offset = 0, requestHost = null) {
   return new Promise((resolve) => {
     try {
-      // 尝试从 FastAPI 获取日志
+      // 检查是否是 Vercel 预览部署（预览部署需要身份验证，无法通过外部 HTTP 调用）
+      const isPreviewDeployment = process.env.VERCEL_ENV === 'preview' ||
+                                   (process.env.VERCEL_URL && process.env.VERCEL_URL.includes('-'));
+
+      if (isPreviewDeployment) {
+        // 预览部署中，跳过 API 调用（会触发身份验证）
+        console.log("Skipping API log fetch in preview deployment (requires authentication)");
+        resolve({ logs: [], total: 0 });
+        return;
+      }
+
+      // 尝试从 FastAPI 获取日志（仅在生产环境或本地）
       let baseUrl;
-      if (process.env.VERCEL_URL) {
-        // Vercel 环境
+      if (process.env.VERCEL_URL && process.env.VERCEL_ENV === 'production') {
+        // Vercel 生产环境
         baseUrl = `https://${process.env.VERCEL_URL}`;
-      } else if (requestHost) {
-        // 从请求中获取 host
-        const protocol = requestHost.includes('localhost') ? 'http' : 'https';
-        baseUrl = `${protocol}://${requestHost}`;
+      } else if (requestHost && !requestHost.includes('localhost')) {
+        // 从请求中获取 host（非本地）
+        baseUrl = `https://${requestHost}`;
       } else {
         // 本地开发环境
         baseUrl = process.env.HOST || "http://localhost:8000";
       }
+
       // FastAPI 的日志端点：直接访问 /api/app/internal-logs
-      // 因为 FastAPI 应用在 /api/app 下，所以完整路径是 /api/app/internal-logs
       const url = `${baseUrl}/api/app/internal-logs?limit=${limit}&offset=${offset}`;
 
       fetch(url)
         .then(async (response) => {
           if (!response.ok) {
+            // 如果是 401，可能是身份验证问题，静默失败
+            if (response.status === 401) {
+              console.log("API log fetch requires authentication, skipping");
+              resolve({ logs: [], total: 0 });
+              return;
+            }
             const errorText = await response.text().catch(() => '');
-            console.error(`Failed to read logs from API: HTTP ${response.status} - ${errorText}`);
-            throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+            console.error(`Failed to read logs from API: HTTP ${response.status}`);
+            throw new Error(`HTTP ${response.status}`);
           }
           return response.json();
         })
@@ -66,8 +82,7 @@ async function getLogsFromAPI(limit = 100, offset = 0, requestHost = null) {
           resolve({ logs: data.items || [], total: data.total || 0 });
         })
         .catch((e) => {
-          console.error("Failed to read logs from API:", e.message);
-          // 不抛出错误，返回空日志，这样至少文件系统的日志还能显示
+          // 静默失败，不影响文件系统日志的显示
           resolve({ logs: [], total: 0 });
         });
     } catch (e) {
@@ -126,26 +141,28 @@ async function clearLogs(requestHost = null) {
     console.error("Failed to clear file logs:", e);
   }
 
-  // 清空 API 日志
+  // 清空 API 日志（仅在非预览部署中）
   try {
-    let baseUrl;
-    if (process.env.VERCEL_URL) {
-      baseUrl = `https://${process.env.VERCEL_URL}`;
-    } else if (requestHost) {
-      const protocol = requestHost.includes('localhost') ? 'http' : 'https';
-      baseUrl = `${protocol}://${requestHost}`;
-    } else {
-      baseUrl = process.env.HOST || "http://localhost:8000";
-    }
-    // FastAPI 的日志端点：直接访问 /api/app/internal-logs
-    const response = await fetch(`${baseUrl}/api/app/internal-logs`, { method: "DELETE" });
-    apiSuccess = response.ok;
-    if (!apiSuccess) {
-      const errorText = await response.text().catch(() => '');
-      console.error(`Failed to clear API logs: HTTP ${response.status} - ${errorText}`);
+    const isPreviewDeployment = process.env.VERCEL_ENV === 'preview' ||
+                                 (process.env.VERCEL_URL && process.env.VERCEL_URL.includes('-'));
+
+    if (!isPreviewDeployment) {
+      let baseUrl;
+      if (process.env.VERCEL_URL && process.env.VERCEL_ENV === 'production') {
+        baseUrl = `https://${process.env.VERCEL_URL}`;
+      } else if (requestHost && !requestHost.includes('localhost')) {
+        baseUrl = `https://${requestHost}`;
+      } else {
+        baseUrl = process.env.HOST || "http://localhost:8000";
+      }
+      const response = await fetch(`${baseUrl}/api/app/internal-logs`, { method: "DELETE" });
+      apiSuccess = response.ok;
+      if (!apiSuccess && response.status !== 401) {
+        console.error(`Failed to clear API logs: HTTP ${response.status}`);
+      }
     }
   } catch (e) {
-    console.error("Failed to clear API logs:", e);
+    // 静默失败
   }
 
   return fileSuccess || apiSuccess;
