@@ -797,9 +797,19 @@ class XHS:
             tags=["API"],
         )
         async def get_logs(
+            request: Request,
             limit: Annotated[int, Field(default=50, ge=1, le=100)] = 50,
             offset: Annotated[int, Field(default=0, ge=0)] = 0,
         ):
+            # 检查内部调用密钥（用于绕过 Vercel 预览部署的身份验证）
+            # 如果未配置密钥，则允许所有请求（向后兼容）
+            internal_key = os.getenv("XHS_INTERNAL_API_KEY", "")
+            if internal_key:
+                auth_header = request.headers.get("x-internal-api-key", "")
+                if auth_header != internal_key:
+                    from fastapi import HTTPException
+                    raise HTTPException(status_code=403, detail="Invalid internal API key")
+
             from .request_logger import get_logs
             logs, total = get_logs(limit=limit, offset=offset)
             return {
@@ -815,7 +825,15 @@ class XHS:
             description=_("清空所有API请求日志记录"),
             tags=["API"],
         )
-        async def clear_logs():
+        async def clear_logs(request: Request):
+            # 检查内部调用密钥
+            internal_key = os.getenv("XHS_INTERNAL_API_KEY", "")
+            if internal_key:
+                auth_header = request.headers.get("x-internal-api-key", "")
+                if auth_header != internal_key:
+                    from fastapi import HTTPException
+                    raise HTTPException(status_code=403, detail="Invalid internal API key")
+
             from .request_logger import clear_logs
             success = clear_logs()
             return {
