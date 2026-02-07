@@ -1,8 +1,22 @@
 import os
+import warnings
 from contextlib import asynccontextmanager
 
 if os.getenv("VERCEL") and not os.getenv("XHS_VOLUME"):
     os.environ["XHS_VOLUME"] = "/tmp/xhs_downloader_volume"
+
+# 抑制来自 uvicorn/websockets 的弃用警告
+# 这些警告来自第三方库内部，不影响功能
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    message=".*websockets.legacy.*",
+)
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    message=".*websockets.server.WebSocketServerProtocol.*",
+)
 
 from fastapi import FastAPI
 
