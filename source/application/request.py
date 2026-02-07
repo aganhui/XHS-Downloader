@@ -46,6 +46,12 @@ class Html:
                         **kwargs,
                     )
                     await sleep_time()
+                    # 检查是否重定向到 404 页面
+                    final_url = str(response.url)
+                    if "/404" in final_url or "errorCode" in final_url:
+                        error_msg = _("请求被重定向到错误页面: {0}").format(final_url)
+                        logging(self.print, error_msg, ERROR)
+                        return ""
                     response.raise_for_status()
                     return response.text if content else str(response.url)
                 case True:
@@ -56,6 +62,12 @@ class Html:
                         **kwargs,
                     )
                     await sleep_time()
+                    # 检查是否重定向到 404 页面
+                    final_url = str(response.url)
+                    if "/404" in final_url or "errorCode" in final_url:
+                        error_msg = _("请求被重定向到错误页面: {0}").format(final_url)
+                        logging(self.print, error_msg, ERROR)
+                        return ""
                     response.raise_for_status()
                     return response.text if content else str(response.url)
                 case _:
