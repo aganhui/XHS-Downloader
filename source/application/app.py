@@ -13,7 +13,7 @@ from datetime import datetime
 from re import compile
 from urllib.parse import urlparse
 from textwrap import dedent
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastmcp import FastMCP
 from typing import Annotated
@@ -791,7 +791,7 @@ class XHS:
             return ExtractData(message=msg, params=extract, data=data)
 
         @server.get(
-            "/app-logs",
+            "/internal-logs",
             summary=_("获取请求日志"),
             description=_("获取API请求日志记录"),
             tags=["API"],
@@ -810,7 +810,7 @@ class XHS:
             }
 
         @server.delete(
-            "/app-logs",
+            "/internal-logs",
             summary=_("清空请求日志"),
             description=_("清空所有API请求日志记录"),
             tags=["API"],

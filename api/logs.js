@@ -49,13 +49,16 @@ async function getLogsFromAPI(limit = 100, offset = 0, requestHost = null) {
         // 本地开发环境
         baseUrl = process.env.HOST || "http://localhost:8000";
       }
-      // FastAPI 的日志端点通过 /app-logs 访问（会被重写到 /api/app，然后 FastAPI 处理 /app-logs 路径）
+      // FastAPI 的日志端点通过 /app-logs 访问（会被重写到 /api/app，然后 FastAPI 处理 /internal-logs 路径）
+      // 使用 /app-logs 作为外部路径，FastAPI 内部使用 /internal-logs
       const url = `${baseUrl}/app-logs?limit=${limit}&offset=${offset}`;
 
       fetch(url)
-        .then((response) => {
+        .then(async (response) => {
           if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            const errorText = await response.text().catch(() => '');
+            console.error(`Failed to read logs from API: HTTP ${response.status} - ${errorText}`);
+            throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
           }
           return response.json();
         })
@@ -64,6 +67,7 @@ async function getLogsFromAPI(limit = 100, offset = 0, requestHost = null) {
         })
         .catch((e) => {
           console.error("Failed to read logs from API:", e.message);
+          // 不抛出错误，返回空日志，这样至少文件系统的日志还能显示
           resolve({ logs: [], total: 0 });
         });
     } catch (e) {
@@ -136,6 +140,10 @@ async function clearLogs(requestHost = null) {
     // FastAPI 的日志端点通过 /app-logs 访问
     const response = await fetch(`${baseUrl}/app-logs`, { method: "DELETE" });
     apiSuccess = response.ok;
+    if (!apiSuccess) {
+      const errorText = await response.text().catch(() => '');
+      console.error(`Failed to clear API logs: HTTP ${response.status} - ${errorText}`);
+    }
   } catch (e) {
     console.error("Failed to clear API logs:", e);
   }
