@@ -395,6 +395,14 @@ class XHS:
             cookie=cookie,
             proxy=proxy,
         )
+        # 检测404错误：如果html为空且URL包含404或errorCode，说明笔记不存在
+        if not html:
+            # 检查是否是404错误（request.py已经检测并返回空字符串）
+            # 这里我们可以通过检查URL或添加更明确的错误信息
+            error_msg = _("请求被重定向到错误页面，笔记不存在或已被删除")
+            self.logging(_("{0} {1}").format(id_, error_msg), ERROR)
+            count.fail += 1
+            return id_, {"message": error_msg, "error": "404"}
         namespace = self.__generate_data_object(html)
         if not namespace:
             self.logging(_("{0} 获取数据失败").format(id_), ERROR)
@@ -727,15 +735,21 @@ class XHS:
             if not url:
                 msg = _("提取小红书作品链接失败")
             else:
-                if data := await self.__deal_extract(
+                result = await self.__deal_extract(
                     url[0],
                     extract.download,
                     extract.index,
                     not extract.skip,
                     extract.cookie,
                     extract.proxy,
-                ):
+                )
+                if result and isinstance(result, dict) and result.get("error") == "404":
+                    # 明确返回404错误信息
+                    msg = result.get("message", _("笔记不存在或已被删除（404）"))
+                    data = None
+                elif result:
                     msg = _("获取小红书作品数据成功")
+                    data = result
                 else:
                     msg = _("获取小红书作品数据失败")
             return ExtractData(message=msg, params=extract, data=data)
