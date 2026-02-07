@@ -3,6 +3,7 @@
     { "source": "/xhs/search", "destination": "/api/search" },
     { "source": "/logs", "destination": "/api/logs" },
     { "source": "/logs.html", "destination": "/api/logs.html" },
+    { "source": "/app-logs", "destination": "/api/app" },
     { "source": "/docs", "destination": "/api/app/docs" },
     { "source": "/redoc", "destination": "/api/app/redoc" },
     { "source": "/openapi.json", "destination": "/api/app/openapi.json" },

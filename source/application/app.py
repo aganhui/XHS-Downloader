@@ -790,6 +790,39 @@ class XHS:
 
             return ExtractData(message=msg, params=extract, data=data)
 
+        @server.get(
+            "/app-logs",
+            summary=_("获取请求日志"),
+            description=_("获取API请求日志记录"),
+            tags=["API"],
+        )
+        async def get_logs(
+            limit: Annotated[int, Field(default=50, ge=1, le=100)] = 50,
+            offset: Annotated[int, Field(default=0, ge=0)] = 0,
+        ):
+            from .request_logger import get_logs
+            logs, total = get_logs(limit=limit, offset=offset)
+            return {
+                "items": logs,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            }
+
+        @server.delete(
+            "/app-logs",
+            summary=_("清空请求日志"),
+            description=_("清空所有API请求日志记录"),
+            tags=["API"],
+        )
+        async def clear_logs():
+            from .request_logger import clear_logs
+            success = clear_logs()
+            return {
+                "success": success,
+                "message": _("日志已清空") if success else _("清空日志失败"),
+            }
+
     async def run_mcp_server(
         self,
         transport="streamable-http",
