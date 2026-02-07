@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from httpx import HTTPError
 from httpx import get
 
-from ..module import ERROR, Manager, logging, retry, sleep_time
+from ..module import ERROR, Manager, logging, sleep_time
 from ..translation import _
 
 if TYPE_CHECKING:
@@ -23,7 +23,6 @@ class Html:
         self.headers = manager.headers
         self.timeout = manager.timeout
 
-    @retry
     async def request_url(
         self,
         url: str,
@@ -37,48 +36,70 @@ class Html:
         headers = self.update_cookie(
             cookie,
         )
-        try:
-            match bool(proxy):
-                case False:
-                    response = await self.__request_url_get(
-                        url,
-                        headers,
-                        **kwargs,
-                    )
-                    await sleep_time()
-                    # 检查是否重定向到 404 页面
-                    final_url = str(response.url)
-                    if "/404" in final_url or "errorCode" in final_url:
-                        error_msg = _("请求被重定向到错误页面: {0}").format(final_url)
-                        logging(self.print, error_msg, ERROR)
-                        return ""
-                    response.raise_for_status()
-                    return response.text if content else str(response.url)
-                case True:
-                    response = await self.__request_url_get_proxy(
-                        url,
-                        headers,
-                        proxy,
-                        **kwargs,
-                    )
-                    await sleep_time()
-                    # 检查是否重定向到 404 页面
-                    final_url = str(response.url)
-                    if "/404" in final_url or "errorCode" in final_url:
-                        error_msg = _("请求被重定向到错误页面: {0}").format(final_url)
-                        logging(self.print, error_msg, ERROR)
-                        return ""
-                    response.raise_for_status()
-                    return response.text if content else str(response.url)
-                case _:
-                    raise ValueError
-        except HTTPError as error:
-            logging(
-                self.print,
-                _("网络异常，{0} 请求失败: {1}").format(url, repr(error)),
-                ERROR,
-            )
+        # 使用 _NO_RETRY 标记来避免重试
+        _NO_RETRY = object()
+
+        async def _do_request():
+            try:
+                match bool(proxy):
+                    case False:
+                        response = await self.__request_url_get(
+                            url,
+                            headers,
+                            **kwargs,
+                        )
+                        await sleep_time()
+                        # 检查是否重定向到 404 页面
+                        final_url = str(response.url)
+                        if "/404" in final_url or "errorCode" in final_url:
+                            error_msg = _("请求被重定向到错误页面: {0}").format(final_url)
+                            logging(self.print, error_msg, ERROR)
+                            # 返回特殊标记，避免重试
+                            return _NO_RETRY
+                        response.raise_for_status()
+                        return response.text if content else str(response.url)
+                    case True:
+                        response = await self.__request_url_get_proxy(
+                            url,
+                            headers,
+                            proxy,
+                            **kwargs,
+                        )
+                        await sleep_time()
+                        # 检查是否重定向到 404 页面
+                        final_url = str(response.url)
+                        if "/404" in final_url or "errorCode" in final_url:
+                            error_msg = _("请求被重定向到错误页面: {0}").format(final_url)
+                            logging(self.print, error_msg, ERROR)
+                            # 返回特殊标记，避免重试
+                            return _NO_RETRY
+                        response.raise_for_status()
+                        return response.text if content else str(response.url)
+                    case _:
+                        raise ValueError
+            except HTTPError as error:
+                logging(
+                    self.print,
+                    _("网络异常，{0} 请求失败: {1}").format(url, repr(error)),
+                    ERROR,
+                )
+                return ""
+
+        # 手动实现重试逻辑，但跳过 _NO_RETRY 标记的情况
+        result = await _do_request()
+        if result is _NO_RETRY:
             return ""
+        if result:
+            return result
+
+        # 重试逻辑
+        for __ in range(self.retry):
+            result = await _do_request()
+            if result is _NO_RETRY:
+                return ""
+            if result:
+                return result
+        return result or ""
 
     @staticmethod
     def format_url(url: str) -> str:
