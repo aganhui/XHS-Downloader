@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse, parse_qs
 
 from httpx import HTTPError
 from httpx import get
@@ -56,6 +57,16 @@ class Html:
                             logging(self.print, error_msg, ERROR)
                             # 返回特殊标记，避免重试
                             return _NO_RETRY
+                        # 检查重定向后的 URL 是否包含 xsec_token
+                        # 如果原始 URL 不包含 token 但重定向后的 URL 包含，说明重定向是正常的
+                        if "xsec_token" not in url and "xsec_token" in final_url:
+                            # httpx 已经自动跟随重定向，这里只记录日志
+                            token = self.extract_xsec_token(final_url)
+                            if token:
+                                logging(
+                                    self.print,
+                                    _("检测到重定向，已获取 xsec_token: {0}").format(token[:20] + "..." if len(token) > 20 else token),
+                                )
                         response.raise_for_status()
                         return response.text if content else str(response.url)
                     case True:
@@ -73,6 +84,16 @@ class Html:
                             logging(self.print, error_msg, ERROR)
                             # 返回特殊标记，避免重试
                             return _NO_RETRY
+                        # 检查重定向后的 URL 是否包含 xsec_token
+                        # 如果原始 URL 不包含 token 但重定向后的 URL 包含，说明重定向是正常的
+                        if "xsec_token" not in url and "xsec_token" in final_url:
+                            # httpx 已经自动跟随重定向，这里只记录日志
+                            token = self.extract_xsec_token(final_url)
+                            if token:
+                                logging(
+                                    self.print,
+                                    _("检测到重定向，已获取 xsec_token: {0}").format(token[:20] + "..." if len(token) > 20 else token),
+                                )
                         response.raise_for_status()
                         return response.text if content else str(response.url)
                     case _:
@@ -105,6 +126,42 @@ class Html:
     def format_url(url: str) -> str:
         return bytes(url, "utf-8").decode("unicode_escape")
 
+    @staticmethod
+    def extract_xsec_token(url: str) -> str | None:
+        """
+        从 URL 中提取 xsec_token 参数
+
+        Args:
+            url: 包含 xsec_token 的 URL
+
+        Returns:
+            xsec_token 值，如果不存在则返回 None
+        """
+        try:
+            parsed = urlparse(url)
+            query_params = parse_qs(parsed.query)
+            if "xsec_token" in query_params:
+                return query_params["xsec_token"][0]
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def build_url_with_token(base_url: str, token: str) -> str:
+        """
+        构建包含 xsec_token 的完整 URL
+
+        Args:
+            base_url: 基础 URL（如 https://www.xiaohongshu.com/explore/6986a270000000000e00de24）
+            token: xsec_token 值
+
+        Returns:
+            包含 xsec_token 的完整 URL
+        """
+        if "?" in base_url:
+            return f"{base_url}&xsec_token={token}"
+        return f"{base_url}?xsec_token={token}"
+
     def update_cookie(
         self,
         cookie: str = None,
@@ -125,6 +182,7 @@ class Html:
         return await self.client.head(
             url,
             headers=headers,
+            follow_redirects=True,
             **kwargs,
         )
 
@@ -154,6 +212,7 @@ class Html:
         return await self.client.get(
             url,
             headers=headers,
+            follow_redirects=True,
             **kwargs,
         )
 

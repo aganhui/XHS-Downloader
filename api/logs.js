@@ -36,13 +36,23 @@ function getLogsFromFile(limit = 100, offset = 0) {
 async function getLogsFromAPI(limit = 100, offset = 0, requestHost = null) {
   return new Promise((resolve) => {
     try {
-      // 获取内部 API 密钥（用于绕过 Vercel 预览部署的身份验证）
+      // 检查是否是预览部署
+      // Vercel 预览部署有身份验证保护，无法通过外部 HTTP 调用绕过
+      const isPreviewDeployment = process.env.VERCEL_ENV === 'preview';
+
+      if (isPreviewDeployment) {
+        console.log("Preview deployment detected, skipping API log fetch (Vercel protection)");
+        resolve({ logs: [], total: 0 });
+        return;
+      }
+
+      // 获取内部 API 密钥（用于生产环境的安全验证）
       const internalKey = process.env.XHS_INTERNAL_API_KEY || "";
 
       // 构建基础 URL
       let baseUrl;
       if (process.env.VERCEL_URL) {
-        // Vercel 环境（包括预览和生产）
+        // Vercel 生产环境
         baseUrl = `https://${process.env.VERCEL_URL}`;
       } else if (requestHost && !requestHost.includes('localhost')) {
         // 从请求中获取 host（非本地）
@@ -68,13 +78,22 @@ async function getLogsFromAPI(limit = 100, offset = 0, requestHost = null) {
       fetch(url, { headers })
         .then(async (response) => {
           if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+
+            // 检查是否是 Vercel 预览部署保护页面（虽然理论上不应该在生产环境出现）
+            if (response.status === 401 && errorText.includes('Authentication Required')) {
+              console.log("Vercel deployment protection detected, skipping API call");
+              resolve({ logs: [], total: 0 });
+              return;
+            }
+
             // 如果是 401 或 403，可能是身份验证问题
             if (response.status === 401 || response.status === 403) {
               console.log(`API log fetch requires authentication (${response.status}), skipping`);
               resolve({ logs: [], total: 0 });
               return;
             }
-            const errorText = await response.text().catch(() => '');
+
             console.error(`Failed to read logs from API: HTTP ${response.status}`);
             throw new Error(`HTTP ${response.status}`);
           }
@@ -85,6 +104,7 @@ async function getLogsFromAPI(limit = 100, offset = 0, requestHost = null) {
         })
         .catch((e) => {
           // 静默失败，不影响文件系统日志的显示
+          console.error("Failed to read logs from API:", e.message);
           resolve({ logs: [], total: 0 });
         });
     } catch (e) {
