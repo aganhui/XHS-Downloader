@@ -84,8 +84,11 @@ class Manager:
         self.blank_headers = HEADERS | {
             "user-agent": user_agent or USERAGENT,
         }
+        # 清理 Cookie 字符串中的换行符和其他非法字符
+        # HTTP header 值不能包含换行符、回车符等控制字符
+        cleaned_cookie = cookie.replace("\n", "").replace("\r", "").strip() if cookie else ""
         self.headers = self.blank_headers | {
-            "cookie": cookie,
+            "cookie": cleaned_cookie,
         }
         self.retry = retry
         self.chunk = chunk

@@ -109,7 +109,11 @@ class XhsSearchClient:
         proxy: str | None,
     ):
         self.client = client
-        self.cookie = cookie or ""
+        # 清理 Cookie 字符串中的换行符和其他非法字符
+        if cookie:
+            self.cookie = cookie.replace("\n", "").replace("\r", "").strip()
+        else:
+            self.cookie = ""
         self.proxy = proxy
         self.signer = None
 
