@@ -49,9 +49,9 @@ async function getLogsFromAPI(limit = 100, offset = 0, requestHost = null) {
         // 本地开发环境
         baseUrl = process.env.HOST || "http://localhost:8000";
       }
-      // FastAPI 的日志端点通过 /app-logs 访问（会被重写到 /api/app，然后 FastAPI 处理 /internal-logs 路径）
-      // 使用 /app-logs 作为外部路径，FastAPI 内部使用 /internal-logs
-      const url = `${baseUrl}/app-logs?limit=${limit}&offset=${offset}`;
+      // FastAPI 的日志端点：直接访问 /api/app/internal-logs
+      // 因为 FastAPI 应用在 /api/app 下，所以完整路径是 /api/app/internal-logs
+      const url = `${baseUrl}/api/app/internal-logs?limit=${limit}&offset=${offset}`;
 
       fetch(url)
         .then(async (response) => {
@@ -137,8 +137,8 @@ async function clearLogs(requestHost = null) {
     } else {
       baseUrl = process.env.HOST || "http://localhost:8000";
     }
-    // FastAPI 的日志端点通过 /app-logs 访问
-    const response = await fetch(`${baseUrl}/app-logs`, { method: "DELETE" });
+    // FastAPI 的日志端点：直接访问 /api/app/internal-logs
+    const response = await fetch(`${baseUrl}/api/app/internal-logs`, { method: "DELETE" });
     apiSuccess = response.ok;
     if (!apiSuccess) {
       const errorText = await response.text().catch(() => '');
