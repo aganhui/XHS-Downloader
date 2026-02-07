@@ -99,12 +99,15 @@ class XHS:
     VERSION_MAJOR = VERSION_MAJOR
     VERSION_MINOR = VERSION_MINOR
     VERSION_BETA = VERSION_BETA
-    LINK = compile(r"(?:https?://)?www\.xiaohongshu\.com/explore/\S+")
-    USER = compile(r"(?:https?://)?www\.xiaohongshu\.com/user/profile/[a-z0-9]+/\S+")
-    SHARE = compile(r"(?:https?://)?www\.xiaohongshu\.com/discovery/item/\S+")
+    # 更新正则表达式以更好地匹配包含查询参数的 URL
+    # \S+ 会匹配所有非空白字符，包括查询参数
+    LINK = compile(r"(?:https?://)?www\.xiaohongshu\.com/explore/[^\s]+")
+    USER = compile(r"(?:https?://)?www\.xiaohongshu\.com/user/profile/[a-z0-9]+/[^\s]+")
+    SHARE = compile(r"(?:https?://)?www\.xiaohongshu\.com/discovery/item/[^\s]+")
     SHORT = compile(r"(?:https?://)?xhslink\.com/[^\s\"<>\\^`{|}，。；！？、【】《》]+")
-    ID = compile(r"(?:explore|item)/(\S+)?\?")
-    ID_USER = compile(r"user/profile/[a-z0-9]+/(\S+)?\?")
+    # 更新 ID 提取正则，支持包含查询参数的 URL
+    ID = compile(r"(?:explore|item)/([^/?\s]+)")
+    ID_USER = compile(r"user/profile/[a-z0-9]+/([^/?\s]+)")
     __INSTANCE = None
     CLEANER = Cleaner()
 
