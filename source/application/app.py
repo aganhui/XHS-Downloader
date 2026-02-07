@@ -728,30 +728,66 @@ class XHS:
             response_model=ExtractData,
         )
         async def handle(extract: ExtractParams):
+            import time
+            from .request_logger import log_request
+
+            start_time = time.time()
             data = None
+            error_msg = None
             url = await self.extract_links(
                 extract.url,
             )
             if not url:
                 msg = _("提取小红书作品链接失败")
+                error_msg = "提取链接失败"
             else:
-                result = await self.__deal_extract(
-                    url[0],
-                    extract.download,
-                    extract.index,
-                    not extract.skip,
-                    extract.cookie,
-                    extract.proxy,
-                )
-                if result and isinstance(result, dict) and result.get("error") == "404":
-                    # 明确返回404错误信息
-                    msg = result.get("message", _("笔记不存在或已被删除（404）"))
-                    data = None
-                elif result:
-                    msg = _("获取小红书作品数据成功")
-                    data = result
-                else:
+                try:
+                    result = await self.__deal_extract(
+                        url[0],
+                        extract.download,
+                        extract.index,
+                        not extract.skip,
+                        extract.cookie,
+                        extract.proxy,
+                    )
+                    if result and isinstance(result, dict) and result.get("error") == "404":
+                        # 明确返回404错误信息
+                        msg = result.get("message", _("笔记不存在或已被删除（404）"))
+                        data = None
+                        error_msg = "404 - 笔记不存在"
+                    elif result:
+                        msg = _("获取小红书作品数据成功")
+                        data = result
+                    else:
+                        msg = _("获取小红书作品数据失败")
+                        error_msg = "获取数据失败"
+                except Exception as e:
                     msg = _("获取小红书作品数据失败")
+                    error_msg = str(e)
+                    raise
+
+            duration_ms = (time.time() - start_time) * 1000
+
+            # 记录日志
+            log_request(
+                endpoint="/xhs/detail",
+                request_data={
+                    "url": extract.url,
+                    "download": extract.download,
+                    "index": extract.index,
+                    "skip": extract.skip,
+                    "has_cookie": bool(extract.cookie),
+                    "has_proxy": bool(extract.proxy),
+                },
+                response_data={
+                    "message": msg,
+                    "has_data": data is not None,
+                    "data_keys": list(data.keys()) if isinstance(data, dict) else None,
+                } if data else None,
+                error=error_msg,
+                duration_ms=duration_ms,
+            )
+
             return ExtractData(message=msg, params=extract, data=data)
 
     async def run_mcp_server(

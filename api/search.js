@@ -105,6 +105,32 @@ async function readBody(req) {
   });
 }
 
+const fs = require("fs");
+const path = require("path");
+
+function logRequest(endpoint, requestData, responseData, error, durationMs) {
+  try {
+    const logDir = process.env.XHS_LOG_DIR || "/tmp/xhs_logs";
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const logFile = path.join(logDir, "request_logs.jsonl");
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      endpoint: endpoint,
+      request: requestData,
+      response: responseData,
+      error: error,
+      duration_ms: durationMs,
+      success: error === null || error === undefined,
+    };
+    fs.appendFileSync(logFile, JSON.stringify(logEntry) + "\n", "utf8");
+  } catch (e) {
+    // 日志记录失败不应该影响主流程
+    console.error("Failed to log request:", e);
+  }
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.statusCode = 405;
@@ -112,8 +138,13 @@ module.exports = async function handler(req, res) {
     res.end(JSON.stringify({ message: "Method Not Allowed" }));
     return;
   }
+  const startTime = Date.now();
+  let errorMsg = null;
+  let responseData = null;
+  let requestBody = null;
   try {
     const body = await readBody(req);
+    requestBody = body;
     const {
       keyword,
       require_num = 20,
@@ -178,6 +209,11 @@ module.exports = async function handler(req, res) {
       if (url) note.note_url = url;
       return note;
     });
+    responseData = {
+      message: "搜索笔记成功",
+      params: body,
+      data_count: data.length,
+    };
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json");
     res.end(
@@ -189,6 +225,7 @@ module.exports = async function handler(req, res) {
     );
   } catch (error) {
     const message = String(error?.message || error);
+    errorMsg = message;
     res.statusCode = message.includes("Cookie 缺少 a1") ? 400 : 500;
     res.setHeader("Content-Type", "application/json");
     res.end(
@@ -196,6 +233,18 @@ module.exports = async function handler(req, res) {
         message: "搜索笔记失败",
         error: message,
       })
+    );
+  } finally {
+    const durationMs = Date.now() - startTime;
+    logRequest(
+      "/xhs/search",
+      {
+        keyword: requestBody?.keyword || null,
+        require_num: requestBody?.require_num || null,
+      },
+      responseData,
+      errorMsg,
+      durationMs
     );
   }
 };
