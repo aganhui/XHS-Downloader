@@ -351,12 +351,19 @@ class XHS:
         url: str,
     ) -> list:
         urls = []
+        if not url or not url.strip():
+            return urls
         for i in url.split():
+            if not i.strip():
+                continue
             if u := self.SHORT.search(i):
                 i = await self.html.request_url(
                     u.group(),
                     False,
                 )
+                # 如果解析短链接后得到新 URL，需要重新检查
+                if not i or not i.strip():
+                    continue
             if u := self.SHARE.search(i):
                 urls.append(u.group())
             elif u := self.LINK.search(i):
@@ -737,12 +744,15 @@ class XHS:
             start_time = time.time()
             data = None
             error_msg = None
+            # 记录原始 URL 用于调试
+            original_url = extract.url
             url = await self.extract_links(
                 extract.url,
             )
             if not url:
-                msg = _("提取小红书作品链接失败")
-                error_msg = "提取链接失败"
+                # 提供更详细的错误信息
+                msg = _("提取小红书作品链接失败: {0}").format(original_url[:100] if original_url else "URL为空")
+                error_msg = f"提取链接失败: {original_url[:100] if original_url else 'URL为空'}"
             else:
                 try:
                     result = await self.__deal_extract(
